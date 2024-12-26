@@ -9,6 +9,7 @@ import requests
 import os
 import joblib
 import numpy as np
+import json
 
 app = FastAPI()
 log_queue = Queue()
@@ -25,6 +26,8 @@ except Exception as e:
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+ACTIONS = json.load(open('./actions.json'))["actions"]
 
 
 class LogSchema(BaseModel):
@@ -145,23 +148,26 @@ def consume_logs():
                 "status": status
             })
 
-            if all(x["status"] != "Benign" for x in device_status[device_id]["history"][-5:]):
+            if len(device_status[device_id]["history"]) > 5 and all(x["status"] != "Benign" for x in device_status[device_id]["history"][-5:]):
                 if device_status[device_id]["sent"] is None or time.time() - device_status[device_id]["sent"] >= 1000:
                     metadata = device_status[device_id]["metadata"]
                     attack_type = device_status[device_id]["history"][-1]["status"]
+
+                    actions = '\n- ' + '\n- '.join(ACTIONS[attack_type]) + '\n'
                     alert_message = (
-                        f"\u26A0\uFE0F *Attack Alert* \u26A0\uFE0F\n\n"
-                        f"\ud83d\udccd *Device*: `{metadata.get('name', 'Unknown Device')}`\n"
-                        f"\ud83d\udd11 *Device ID*: `{device_id}`\n"
-                        f"\ud83d\udcbb *Type*: `{metadata.get('type', 'Unknown Type')}`\n"
-                        f"\ud83d\udd34 *Status*: `Under Attack`\n"
-                        f"\ud83d\udea8 *Attack Type*: `{attack_type}`\n"
-                        f"\ud83d\udd39 *Location*: `{metadata.get('location', 'Unknown Location')}`\n"
-                        f"\ud83c\udf10 *IP Address*: `{metadata.get('ip_address', 'Unknown IP')}`\n"
-                        f"\u23F0 *Detected At*: `{time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(log_data['timestamp']))}`\n\n"
-                        f"\ud83d\udee0 *Suggested Action*:\n"
-                        f"- Investigate logs.\n"
-                        f"- Disconnect from the network.\n"
+                        f"\u26A0\uFE0F Attack Alert \u26A0\uFE0F\n\n"
+                        f"\ud83d\udccd Device: {metadata.get('name', 'Unknown Device')}\n"
+                        f"\ud83d\udd11 Device ID:{device_id}\n"
+                        f"\ud83d\udcbb Type: {metadata.get('type', 'Unknown Type')}\n"
+                        f"\ud83d\udd34 Status: Under Attack\n"
+                        f"\ud83d\udea8 Attack Type: {attack_type}\n"
+                        f"\ud83d\udd39 Location: {metadata.get('location', 'Unknown Location')}\n"
+                        f"\ud83c\udf10 IP Address: {metadata.get('ip_address', 'Unknown IP')}\n"
+                        f"\u23F0 Detected At: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(log_data['timestamp']))}\n\n"
+                        f"\ud83d\udee0 Suggested Action:\n"
+                        # f"- Investigate logs.\n"
+                        # f"- Disconnect from the network.\n"
+                        f"{actions}"
                         f"- Contact: {metadata.get('admin_contact', 'Unknown Contact')}."
                     )
                     send_telegram_alert(alert_message)

@@ -1,0 +1,18 @@
+{
+    "actions": {
+      "Okiru": [
+        "Immediately disconnect the device from the network.",
+        "Perform a factory reset on the compromised device if necessary.",
+        "Change all default passwords on the device.",
+        "Segment IoT devices on a separate network to limit attack spread.",
+        "Monitor other devices on the same network for similar behavior."
+      ],
+      "DDoS": [
+        "Redirect traffic through a DDoS protection service (e.g., Cloudflare, AWS Shield).",
+        "Rate-limit connections to the affected device.",
+        "Temporarily disable non-critical services to conserve resources.",
+        "Review access control lists (ACLs) on network devices.",
+        "Monitor for secondary attacks, as DDoS can sometimes serve as a diversion."
+      ]
+    }
+  }
