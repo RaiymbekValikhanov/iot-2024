@@ -1,29 +1,24 @@
-import os
-from typing import Optional
-from pydantic import BaseModel
-import uvicorn
 from fastapi import FastAPI
-import pandas as pd
-import lightgbm
-import sklearn
-import joblib
-import numpy as np
-import requests
-import threading
-import time
-from datetime import datetime, timedelta
+from pydantic import BaseModel
+from typing import Optional
 from queue import Queue
 from collections import defaultdict
+import threading
+import time
+import requests
+import os
+import joblib
+import numpy as np
 
 app = FastAPI()
 log_queue = Queue()
-device_status = defaultdict(lambda: {"status": "ok", "history": [], "sent": None})
+device_status = defaultdict(lambda: {"status": "ok", "history": [], "sent": None, "metadata": {}})
 
-MODEL_PATH = "lgbm_model.pkl"
+MODEL_PATH = "lgbm_model_2.pkl"
 try:
-    print(f"Start loading model")
+    print("Start loading model")
     model = joblib.load(MODEL_PATH)
-    print(f"Model loaded")
+    print("Model loaded")
 except Exception as e:
     print(f"Error loading model: {e}")
     model = None
@@ -45,16 +40,35 @@ class LogSchema(BaseModel):
     udp: Optional[bool] = False
 
 
-# Endpoint to register new devices
+class RegisterDeviceSchema(BaseModel):
+    device_id: str
+    name: str
+    type: str
+    location: Optional[str] = None
+    ip_address: Optional[str] = None
+    admin_contact: Optional[str] = None
+
+
 @app.post("/register-device")
-def register_device(device_id: str):
-    if device_id in device_status:
+def register_device(details: RegisterDeviceSchema):
+    if details.device_id in device_status:
         return {"status": "error", "message": "Device already registered."}
-    device_status[device_id] = {"status": "ok", "history": [], "sent": None}
-    return {"status": "success", "message": f"Device {device_id} registered successfully."}
+
+    device_status[details.device_id] = {
+        "status": "ok",
+        "history": [],
+        "sent": None,
+        "metadata": {
+            "name": details.name,
+            "type": details.type,
+            "location": details.location,
+            "ip_address": details.ip_address,
+            "admin_contact": details.admin_contact,
+        },
+    }
+    return {"status": "success", "message": f"Device {details.device_id} registered successfully."}
 
 
-# Endpoint to receive logs and add them to the queue
 @app.post("/send-log")
 def receive_log(device_id: str, log: LogSchema):
     """Receives logs from devices and adds them to the queue."""
@@ -97,7 +111,6 @@ def send_telegram_alert(message: str):
         print(f"Error sending Telegram alert: {e}")
 
 
-# Endless job to consume logs from the queue and run model
 def consume_logs():
     while True:
         if not log_queue.empty():
@@ -118,31 +131,46 @@ def consume_logs():
             ]])
 
             prediction = model.predict(numeric_data)
+            print(prediction)
 
             device_id = log_data["device_id"]
             if device_id not in device_status:
                 device_status[device_id] = {"status": "ok", "history": [], "sent": None}
 
-            status = "attack" if prediction[0] == 1 else "ok"
+            # status = "ok" if prediction[0] == "Benign" else "attack"
+            status = prediction[0]
             device_status[device_id]["status"] = status
             device_status[device_id]["history"].append({
                 "timestamp": log_data["timestamp"],
                 "status": status
             })
 
-            if all(x["status"] == "attack" for x in device_status[device_id]["history"][-5:]):
-                print(device_status[device_id]["sent"])
-                if device_status[device_id]["sent"] is None or time.time() - device_status[device_id]["sent"] >= 1000: 
-                    send_telegram_alert(f"⚠️ Attack detected for device {device_id}.")
+            if all(x["status"] != "Benign" for x in device_status[device_id]["history"][-5:]):
+                if device_status[device_id]["sent"] is None or time.time() - device_status[device_id]["sent"] >= 1000:
+                    metadata = device_status[device_id]["metadata"]
+                    attack_type = device_status[device_id]["history"][-1]["status"]
+                    alert_message = (
+                        f"\u26A0\uFE0F *Attack Alert* \u26A0\uFE0F\n\n"
+                        f"\ud83d\udccd *Device*: `{metadata.get('name', 'Unknown Device')}`\n"
+                        f"\ud83d\udd11 *Device ID*: `{device_id}`\n"
+                        f"\ud83d\udcbb *Type*: `{metadata.get('type', 'Unknown Type')}`\n"
+                        f"\ud83d\udd34 *Status*: `Under Attack`\n"
+                        f"\ud83d\udea8 *Attack Type*: `{attack_type}`\n"
+                        f"\ud83d\udd39 *Location*: `{metadata.get('location', 'Unknown Location')}`\n"
+                        f"\ud83c\udf10 *IP Address*: `{metadata.get('ip_address', 'Unknown IP')}`\n"
+                        f"\u23F0 *Detected At*: `{time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(log_data['timestamp']))}`\n\n"
+                        f"\ud83d\udee0 *Suggested Action*:\n"
+                        f"- Investigate logs.\n"
+                        f"- Disconnect from the network.\n"
+                        f"- Contact: {metadata.get('admin_contact', 'Unknown Contact')}."
+                    )
+                    send_telegram_alert(alert_message)
                     device_status[device_id]["sent"] = time.time()
-            else:
-                print("OK")
         else:
             time.sleep(1)
 
-
-# Start the log consumption job in a separate thread
 threading.Thread(target=consume_logs, daemon=True).start()
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
