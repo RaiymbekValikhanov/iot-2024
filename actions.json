@@ -1,16 +1,38 @@
 {
     "actions": {
+      "PartOfAHorizontalPortScan": [
+        "Block suspicious IP addresses in the firewall.",
+        "Monitor for unusual traffic patterns in network logs.",
+        "Increase logging verbosity for ports being scanned.",
+        "Enable intrusion detection/prevention systems (IDS/IPS) to block scanning attempts.",
+        "Review and close unnecessary open ports on the device.",
+        "Conduct a vulnerability scan to identify weak spots.",
+        "Isolate the device temporarily from the network for further investigation."
+      ],
       "Okiru": [
         "Immediately disconnect the device from the network.",
+        "Check and update the device firmware to the latest version.",
         "Perform a factory reset on the compromised device if necessary.",
+        "Scan the device for malware using an appropriate tool.",
         "Change all default passwords on the device.",
         "Segment IoT devices on a separate network to limit attack spread.",
         "Monitor other devices on the same network for similar behavior."
       ],
+      "C&C": [
+        "Immediately block outbound traffic to suspicious IPs or domains.",
+        "Identify and isolate the compromised device.",
+        "Scan the device and network for malware.",
+        "Review DNS logs for abnormal queries.",
+        "Update firewalls to block known C&C server IPs/domains.",
+        "Report the C&C server details to your ISP or relevant authorities.",
+        "Implement endpoint detection and response (EDR) solutions."
+      ],
       "DDoS": [
         "Redirect traffic through a DDoS protection service (e.g., Cloudflare, AWS Shield).",
-        "Rate-limit connections to the affected device.",
+        "Rate-limit connections to the affected device or service.",
+        "Implement traffic filtering to block known malicious IPs.",
         "Temporarily disable non-critical services to conserve resources.",
+        "Notify your ISP to request assistance in mitigating the attack.",
         "Review access control lists (ACLs) on network devices.",
         "Monitor for secondary attacks, as DDoS can sometimes serve as a diversion."
       ]
